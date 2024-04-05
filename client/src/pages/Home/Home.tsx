@@ -8,16 +8,23 @@ export default function Home() {
     /**
      * classRoom으로 이동한다.
      */
-    const redirectToClassRooom = () => {
+    const redirectToClassRooom = (userType: TUser) => {
         navigate('/classroom');
+        sessionStorage.setItem('type', userType);
     };
     return (
-        <div className="bg-blue-100 w-screen h-screen flex justify-center items-center">
+        <div className="bg-blue-100 w-screen h-screen flex flex-col gap-4 justify-center items-center">
             <button
                 className="bg-gradient-to-br from-blue-300 to-blue-100 w-[300px] h-[80px] rounded-full shadow-xl text-xl text-white font-extrabold"
-                onClick={redirectToClassRooom}
+                onClick={() => redirectToClassRooom('teacher')}
             >
-                ClassRoom
+                TEACHER
+            </button>
+            <button
+                className="bg-gradient-to-br from-blue-100 to-blue-300 w-[300px] h-[80px] rounded-full shadow-xl text-xl text-white font-extrabold"
+                onClick={() => redirectToClassRooom('learner')}
+            >
+                LEARNER
             </button>
         </div>
     );
