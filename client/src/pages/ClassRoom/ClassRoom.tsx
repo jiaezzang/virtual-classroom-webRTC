@@ -1,18 +1,20 @@
 import { streamingConfigAtom } from '@/atoms';
 import useSignaling, { RTCEvent } from '@/hooks/useSignaling';
-// import useVirtualBackground from '@/hooks/useVirtualBackground';
 import { useAtomValue } from 'jotai';
 import { useEffect, useRef, useState } from 'react';
+import sunflower from '../../assets/images/bg/bg_sunflower.jpg';
+import Canvas from './Canvas';
 
 export default function ClassRoom() {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const userType = sessionStorage.getItem('type') as TUser;
     const [stream, setStream] = useState<MediaStream>();
     const [rtcPeer, setRtcPeer] = useState<RTCPeerConnection>();
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const localVideoRef = useRef<HTMLVideoElement>(null);
+    const localCanvasRef = useRef<HTMLCanvasElement>(null);
+    const remoteCanvasRef = useRef<HTMLCanvasElement>(null);
     const { connectState } = useSignaling(rtcPeer);
     const streamingConfig = useAtomValue(streamingConfigAtom);
-    // useVirtualBackground({ canvasRef });
 
     const connectPeer = (stream: MediaStream) => {
         const config: RTCConfiguration = {
@@ -83,9 +85,24 @@ export default function ClassRoom() {
     }, []);
 
     return (
-        <div className={`flex justify-center w-screen h-screen bg-gradient-to-r bg-red-100`}>
-            <div className="top-container flex flex-col items-center justify-center pt-3 overflow-hidden w-full h-full min-w-[1240px] max-w-[1440px] rounded-xl border border-[white] bg-white">
-                <canvas ref={canvasRef} className="top-0 left-0 w-full h-full rounded-3xl object-cover"></canvas>
+        <div className={`flex justify-center w-screen h-screen bg-gradient-to-r bg-blue-100`}>
+            <div
+                className={`top-container flex items-center justify-center pt-3 overflow-hidden w-full h-full min-w-[1240px] max-w-[1440px] rounded-xl border border-[white]`}
+                style={{ backgroundImage: `url(${sunflower})`, width: '100%', backgroundSize: 'cover', backgroundPosition: 'center' }}
+            >
+                {userType === 'teacher' ? (
+                    <>
+                        {<Canvas canvasRef={remoteCanvasRef} />}
+                        <Canvas canvasRef={localCanvasRef} />
+                    </>
+                ) : (
+                    <>
+                        <Canvas canvasRef={localCanvasRef} />
+                        {<Canvas canvasRef={remoteCanvasRef} />}
+                    </>
+                )}
+                <video ref={localVideoRef} autoPlay muted></video>
+                <video ref={remoteVideoRef} autoPlay muted></video>
             </div>
         </div>
     );
