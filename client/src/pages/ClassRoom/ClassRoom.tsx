@@ -30,6 +30,7 @@ export default function ClassRoom() {
         rtcPeer.ontrack = (e) => {
             if (!remoteVideoRef.current) return;
             remoteVideoRef.current.srcObject = e.streams[0];
+            drawStreamToCanvas({ stream: e.streams[0], canvasRef: remoteCanvasRef });
             remoteVideoRef.current.play().catch((error) => {
                 console.error(error);
             });
