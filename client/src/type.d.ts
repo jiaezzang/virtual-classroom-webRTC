@@ -1,2 +1,2 @@
-/** 유저 타입 */
-type TUser = 'learner' | 'teacher';
+/** User Type */
+type TUser = 'teacher' | 'learner';
