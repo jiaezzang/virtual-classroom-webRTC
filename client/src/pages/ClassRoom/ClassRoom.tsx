@@ -4,6 +4,7 @@ import { useAtomValue } from 'jotai';
 import { useEffect, useRef, useState } from 'react';
 import sunflower from '../../assets/images/bg/bg_sunflower.jpg';
 import Canvas from './Canvas';
+import { drawStreamToCanvas } from '@/utils/utils';
 
 export default function ClassRoom() {
     const userType = sessionStorage.getItem('type') as TUser;
@@ -84,25 +85,30 @@ export default function ClassRoom() {
         };
     }, []);
 
+    useEffect(() => {
+        if (stream) drawStreamToCanvas({ stream, canvasRef: localCanvasRef });
+    }, [stream, localCanvasRef]);
+
     return (
         <div className={`flex justify-center w-screen h-screen bg-gradient-to-r bg-blue-100`}>
-            <div
-                className={`top-container flex items-center justify-center pt-3 overflow-hidden w-full h-full min-w-[1240px] max-w-[1440px] rounded-xl border border-[white]`}
-                style={{ backgroundImage: `url(${sunflower})`, width: '100%', backgroundSize: 'cover', backgroundPosition: 'center' }}
-            >
-                {userType === 'teacher' ? (
-                    <>
-                        {<Canvas canvasRef={remoteCanvasRef} />}
-                        <Canvas canvasRef={localCanvasRef} />
-                    </>
-                ) : (
-                    <>
-                        <Canvas canvasRef={localCanvasRef} />
-                        {<Canvas canvasRef={remoteCanvasRef} />}
-                    </>
-                )}
-                <video ref={localVideoRef} autoPlay muted></video>
-                <video ref={remoteVideoRef} autoPlay muted></video>
+            <div className="flex flex-col items-center gap-3 pt-2">
+                <label className="bg-[red] w-[100px] h-[35px] text-blue-100 pt-1 text-center rounded-3xl font-extrabold">{userType.toUpperCase()}</label>
+                <div
+                    className={`top-container relative flex items-center justify-center pt-3 overflow-hidden w-full h-full min-w-[1240px] max-w-[1440px]`}
+                    style={{ backgroundImage: `url(${sunflower})`, width: '100%', backgroundSize: 'cover', backgroundPosition: 'center' }}
+                >
+                    {userType === 'teacher' ? (
+                        <>
+                            {<Canvas canvasRef={remoteCanvasRef} />}
+                            <Canvas canvasRef={localCanvasRef} />
+                        </>
+                    ) : (
+                        <>
+                            <Canvas canvasRef={localCanvasRef} />
+                            {<Canvas canvasRef={remoteCanvasRef} />}
+                        </>
+                    )}
+                </div>
             </div>
         </div>
     );
