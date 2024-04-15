@@ -3,19 +3,19 @@ import useSignaling, { RTCEvent } from '@/hooks/useSignaling';
 import { useAtomValue } from 'jotai';
 import { useEffect, useRef, useState } from 'react';
 import sunflower from '../../assets/images/bg/bg_sunflower.jpg';
-import Canvas from './Canvas';
-import { drawStreamToCanvas } from '@/utils/utils';
+import RemoteCanvas from './RemoteCanvas';
+import LocalCanvas from './LocalCanvas';
 
 export default function ClassRoom() {
     const userType = sessionStorage.getItem('type') as TUser;
     const [stream, setStream] = useState<MediaStream>();
     const [rtcPeer, setRtcPeer] = useState<RTCPeerConnection>();
-    const remoteVideoRef = useRef<HTMLVideoElement>(null);
-    const localVideoRef = useRef<HTMLVideoElement>(null);
     const localCanvasRef = useRef<HTMLCanvasElement>(null);
     const remoteCanvasRef = useRef<HTMLCanvasElement>(null);
     const { connectState } = useSignaling(rtcPeer);
     const streamingConfig = useAtomValue(streamingConfigAtom);
+    const [local, setLocal] = useState<HTMLVideoElement | null>(null);
+    const [remote, setRemote] = useState<HTMLVideoElement | null>(null);
 
     const connectPeer = (stream: MediaStream) => {
         const config: RTCConfiguration = {
@@ -28,12 +28,10 @@ export default function ClassRoom() {
         const rtcPeer = new RTCPeerConnection(config);
         stream.getTracks().forEach((track) => rtcPeer.addTrack(track, stream));
         rtcPeer.ontrack = (e) => {
-            if (!remoteVideoRef.current) return;
-            remoteVideoRef.current.srcObject = e.streams[0];
-            drawStreamToCanvas({ stream: e.streams[0], canvasRef: remoteCanvasRef });
-            remoteVideoRef.current.play().catch((error) => {
-                console.error(error);
-            });
+            const remoteVideoEl = document.createElement('video');
+            remoteVideoEl.srcObject = e.streams[0];
+            remoteVideoEl.autoplay = true;
+            setRemote(remoteVideoEl);
         };
         setRtcPeer(rtcPeer);
     };
@@ -45,8 +43,11 @@ export default function ClassRoom() {
     }, []);
 
     useEffect(() => {
-        if (!localVideoRef.current || !stream) return;
-        localVideoRef.current.srcObject = stream;
+        if (!stream) return;
+        const localVideoEl = document.createElement('video');
+        localVideoEl.srcObject = stream;
+        localVideoEl.autoplay = true;
+        setLocal(localVideoEl);
     }, [stream]);
 
     /** Remote Video */
@@ -86,10 +87,6 @@ export default function ClassRoom() {
         };
     }, []);
 
-    useEffect(() => {
-        if (stream) drawStreamToCanvas({ stream, canvasRef: localCanvasRef });
-    }, [stream, localCanvasRef]);
-
     return (
         <div className={`flex justify-center w-screen h-screen bg-gradient-to-r bg-blue-100`}>
             <div className="flex flex-col items-center gap-3 pt-2">
@@ -100,13 +97,13 @@ export default function ClassRoom() {
                 >
                     {userType === 'teacher' ? (
                         <>
-                            {<Canvas canvasRef={remoteCanvasRef} />}
-                            <Canvas canvasRef={localCanvasRef} />
+                            {remote && <RemoteCanvas video={remote} canvasRef={remoteCanvasRef} />}
+                            {local && <LocalCanvas video={local} canvasRef={localCanvasRef} />}
                         </>
                     ) : (
                         <>
-                            <Canvas canvasRef={localCanvasRef} />
-                            {<Canvas canvasRef={remoteCanvasRef} />}
+                            {local && <LocalCanvas video={local} canvasRef={localCanvasRef} />}
+                            {remote && <RemoteCanvas video={remote} canvasRef={remoteCanvasRef} />}
                         </>
                     )}
                 </div>
