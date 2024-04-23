@@ -2,20 +2,31 @@ import { streamingConfigAtom } from '@/atoms';
 import useSignaling, { RTCEvent } from '@/hooks/useSignaling';
 import { useAtomValue } from 'jotai';
 import { useEffect, useRef, useState } from 'react';
-import sunflower from '../../assets/images/bg/bg_sunflower.jpg';
-import RemoteCanvas from './RemoteCanvas';
-import LocalCanvas from './LocalCanvas';
+import { useSelfieSegmentation2 } from '@/hooks/useSelfieSegmentation2';
+import bgYuchae from '@/assets/images/bg/bg_yuchae.jpg';
+import bgSpring from '@/assets/images/bg/bg_spring.jpg';
+import bgSky from '@/assets/images/bg/bg_sky.jpg';
+import bgNight from '@/assets/images/bg/bg_night.jpg';
 
 export default function ClassRoom() {
     const userType = sessionStorage.getItem('type') as TUser;
     const [stream, setStream] = useState<MediaStream>();
     const [rtcPeer, setRtcPeer] = useState<RTCPeerConnection>();
-    const localCanvasRef = useRef<HTMLCanvasElement>(null);
-    const remoteCanvasRef = useRef<HTMLCanvasElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const { connectState } = useSignaling(rtcPeer);
     const streamingConfig = useAtomValue(streamingConfigAtom);
-    const [local, setLocal] = useState<HTMLVideoElement | null>(null);
-    const [remote, setRemote] = useState<HTMLVideoElement | null>(null);
+    const [local, setLocal] = useState<HTMLVideoElement | undefined>(undefined);
+    const [remote, setRemote] = useState<HTMLVideoElement | undefined>(undefined);
+    const { updateVideo } = useSelfieSegmentation2({ canvasRef });
+    const [background, setBackground] = useState<string | null>(null);
+
+    /** 배경을 변경한다 */
+    const onChangeBg = () => {
+        const bg = [bgYuchae, bgSpring, bgSky, bgNight, null];
+        const currentIndex = bg.indexOf(background);
+        const nextIndex = currentIndex === bg.length - 1 ? 0 : currentIndex + 1;
+        setBackground(bg[nextIndex]);
+    };
 
     const connectPeer = (stream: MediaStream) => {
         const config: RTCConfiguration = {
@@ -28,10 +39,14 @@ export default function ClassRoom() {
         const rtcPeer = new RTCPeerConnection(config);
         stream.getTracks().forEach((track) => rtcPeer.addTrack(track, stream));
         rtcPeer.ontrack = (e) => {
+            console.log(e);
             const remoteVideoEl = document.createElement('video');
             remoteVideoEl.srcObject = e.streams[0];
             remoteVideoEl.autoplay = true;
-            setRemote(remoteVideoEl);
+            remoteVideoEl.play().catch((error) => {
+                console.error(error);
+            });
+            if (e.streams[0]) setRemote(remoteVideoEl);
         };
         setRtcPeer(rtcPeer);
     };
@@ -47,13 +62,17 @@ export default function ClassRoom() {
         const localVideoEl = document.createElement('video');
         localVideoEl.srcObject = stream;
         localVideoEl.autoplay = true;
-        setLocal(localVideoEl);
+        localVideoEl.play().catch((error) => {
+            console.error(error);
+        });
+        localVideoEl.onloadeddata = () => setLocal(localVideoEl);
     }, [stream]);
 
     /** Remote Video */
     useEffect(() => {
         if (import.meta.env.DEV && connectState === 'connected') return;
         if (!stream) return;
+        console.log('connected');
         connectPeer(stream);
     }, [stream]);
 
@@ -87,26 +106,21 @@ export default function ClassRoom() {
         };
     }, []);
 
+    useEffect(() => {
+        if (local) updateVideo({ localVideo: local, remoteVideo: remote, src: background });
+    }, [local, remote, background]);
+
     return (
         <div className={`flex justify-center w-screen h-screen bg-gradient-to-r bg-blue-100`}>
             <div className="flex flex-col items-center gap-3 pt-2">
-                <label className="bg-[red] w-[100px] h-[35px] text-blue-100 pt-1 text-center rounded-3xl font-extrabold">{userType.toUpperCase()}</label>
-                <div
-                    className={`top-container relative flex items-center justify-center pt-3 overflow-hidden w-full h-full min-w-[1240px] max-w-[1440px]`}
-                    style={{ backgroundImage: `url(${sunflower})`, width: '100%', backgroundSize: 'cover', backgroundPosition: 'center' }}
-                >
-                    {userType === 'teacher' ? (
-                        <>
-                            {remote && <RemoteCanvas video={remote} canvasRef={remoteCanvasRef} />}
-                            {local && <LocalCanvas video={local} canvasRef={localCanvasRef} />}
-                        </>
-                    ) : (
-                        <>
-                            {local && <LocalCanvas video={local} canvasRef={localCanvasRef} />}
-                            {remote && <RemoteCanvas video={remote} canvasRef={remoteCanvasRef} />}
-                        </>
-                    )}
-                </div>
+                <label className="bg-[red] w-[100px] h-[35px] rounded-3xl pt-1 text-blue-100 text-center font-extrabold">{userType.toUpperCase()}</label>
+                <canvas
+                    ref={canvasRef}
+                    className="relative flex items-center justify-center pt-3 overflow-hidden w-full h-full min-w-[1240px] max-w-[1440px] object-cover"
+                ></canvas>
+                <button className="absolute bg-[black] rounded-3xl w-[190px] h-[50px] bottom-5 text-blue-100 text-center font-extrabold" onClick={onChangeBg}>
+                    Change Background
+                </button>
             </div>
         </div>
     );
