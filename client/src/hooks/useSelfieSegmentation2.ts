@@ -10,9 +10,7 @@ export const useSelfieSegmentation2 = ({ canvasRef }: { canvasRef: RefObject<HTM
     const localCanvas = useRef<HTMLCanvasElement>(document.createElement('canvas'));
     const localVideoRef = useRef<HTMLVideoElement>(document.createElement('video'));
     const remoteVideoRef = useRef<HTMLVideoElement>(document.createElement('video'));
-    // const imageSegmenterRef = useRef<ImageSegmenter | null>(null);
     const lastWebcamTime = useRef(-1);
-    const gap = useRef<number>(0);
     const vision = useMemo(async () => FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm'), []);
     const imageSegmenter = useMemo(
         async () =>
@@ -44,14 +42,12 @@ export const useSelfieSegmentation2 = ({ canvasRef }: { canvasRef: RefObject<HTM
         const height = localCanvas.current.height;
         if (remoteVideo.autoplay) {
             //remote Stream 좌측에 그리기
-            ctx?.drawImage(remoteVideo, (width / 4) * -1 + gap.current, 0, width / 2, height);
+            ctx?.drawImage(remoteVideo, width / 2, 0, width / 2, height);
             //local Stream 우측에 그리기
-            ctx?.drawImage(localVideo, width / 4 + gap.current, 0, width / 2, height);
-            gap.current < width / 4 ? (gap.current += 15) : (gap.current = width / 4);
+            ctx?.drawImage(localVideo, 0, 0, width / 2, height);
         } else {
             //localVideo 중앙에 그리기
-            ctx?.drawImage(localVideo, width / 4 + gap.current, 0, width / 2, height);
-            gap.current > 0 ? (gap.current -= 15) : (gap.current = 0);
+            ctx?.drawImage(localVideo, width / 4, 0, width / 2, height);
         }
         if (!isBackground.current || !bgImageDataRef.current) {
             requestAnimationFrame(predictWebcam);
@@ -102,8 +98,8 @@ export const useSelfieSegmentation2 = ({ canvasRef }: { canvasRef: RefObject<HTM
         [canvasRef, predictWebcam]
     );
 
-    const updateVideo = ({ localVideo, remoteVideo, src }: { localVideo: HTMLVideoElement; remoteVideo?: HTMLVideoElement; src?: string | null }) => {
-        localVideoRef.current = localVideo;
+    const updateVideo = ({ localVideo, remoteVideo, src }: { localVideo?: HTMLVideoElement; remoteVideo?: HTMLVideoElement; src?: string | null }) => {
+        if (localVideo) localVideoRef.current = localVideo;
         if (remoteVideo) remoteVideoRef.current = remoteVideo;
         if (canvasRef.current) {
             // Canvas Size 설정
