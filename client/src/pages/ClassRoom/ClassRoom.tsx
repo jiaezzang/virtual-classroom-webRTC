@@ -39,14 +39,13 @@ export default function ClassRoom() {
         const rtcPeer = new RTCPeerConnection(config);
         stream.getTracks().forEach((track) => rtcPeer.addTrack(track, stream));
         rtcPeer.ontrack = (e) => {
-            console.log(e);
             const remoteVideoEl = document.createElement('video');
             remoteVideoEl.srcObject = e.streams[0];
             remoteVideoEl.autoplay = true;
             remoteVideoEl.play().catch((error) => {
                 console.error(error);
             });
-            if (e.streams[0]) setRemote(remoteVideoEl);
+            setRemote(remoteVideoEl);
         };
         setRtcPeer(rtcPeer);
     };
@@ -107,8 +106,9 @@ export default function ClassRoom() {
     }, []);
 
     useEffect(() => {
-        if (local) updateVideo({ localVideo: local, remoteVideo: remote, src: background });
-    }, [local, remote, background]);
+        if (!local && !remote) return;
+        updateVideo({ localVideo: local, remoteVideo: remote, src: background });
+    }, [local, remote, background, updateVideo]);
 
     return (
         <div className={`flex justify-center w-screen h-screen bg-gradient-to-r bg-blue-100`}>
