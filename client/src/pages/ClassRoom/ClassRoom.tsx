@@ -2,7 +2,7 @@ import { streamingConfigAtom } from '@/atoms';
 import useSignaling, { RTCEvent } from '@/hooks/useSignaling';
 import { useAtomValue } from 'jotai';
 import { useEffect, useRef, useState } from 'react';
-import { useSelfieSegmentation2 } from '@/hooks/useSelfieSegmentation2';
+import { useSelfieSegmentation } from '@/hooks/useSelfieSegmentation';
 import bgYuchae from '@/assets/images/bg/bg_yuchae.jpg';
 import bgSpring from '@/assets/images/bg/bg_spring.jpg';
 import bgSky from '@/assets/images/bg/bg_sky.jpg';
@@ -17,7 +17,7 @@ export default function ClassRoom() {
     const streamingConfig = useAtomValue(streamingConfigAtom);
     const [local, setLocal] = useState<HTMLVideoElement | undefined>(undefined);
     const [remote, setRemote] = useState<HTMLVideoElement | undefined>(undefined);
-    const { updateVideo } = useSelfieSegmentation2({ canvasRef });
+    const { updateVideo } = useSelfieSegmentation({ canvasRef });
     const [background, setBackground] = useState<string | null>(null);
 
     /** 배경을 변경한다 */
