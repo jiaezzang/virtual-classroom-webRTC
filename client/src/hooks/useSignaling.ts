@@ -12,9 +12,7 @@ type TSignalData =
 
 type TReceive = 'receive' | 'receive:open' | 'receive:close' | 'receive:error';
 type TSend = 'send' | 'send:open' | 'send:close' | 'send:error';
-type TGesture = 'gesture';
-
-type TEventNames = TReceive | TSend | TGesture | 'open';
+type TEventNames = TReceive | TSend | 'open';
 
 export const RTCEvent = new EventEmitter3<TEventNames>();
 
@@ -22,13 +20,14 @@ export default function useSignaling(peerConnection?: RTCPeerConnection) {
     const [connectState, setConnectState] = useState<RTCPeerConnectionState>('connecting');
     const dataChannel = useRef<RTCDataChannel>();
     const ws = useRef<WebSocket>();
+    const messageQueue = useRef<TSignalData[]>([]);
+    const [isConnected, setIsConnected] = useState(false);
 
     useEffect(() => {
         if (import.meta.env.DEV && connectState === 'connected') return;
 
         if (!peerConnection) return;
         console.log('OPEN RTC!!');
-        //localhost 자리에 server IP 입력하기
         ws.current = new WebSocket('ws://localhost:3000');
         ws.current.addEventListener('open', () => {
             // 시그널링 서버에 로컬 스트림 정보 전송
@@ -84,27 +83,37 @@ export default function useSignaling(peerConnection?: RTCPeerConnection) {
 
         function sendSignal(data: TSignalData) {
             if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-                // 이미 연결된 웹 소켓이 열려 있으면 메시지 전송
                 ws.current.send(JSON.stringify(data));
             } else {
-                console.error('WebSocket connection is not open.');
+                messageQueue.current.push(data);
+            }
+        }
+
+        function flushMessageQueue() {
+            while (messageQueue.current.length > 0 && isConnected) {
+                const data = messageQueue.current.shift();
+                if (data) {
+                    sendSignal(data);
+                }
             }
         }
         function handleNewStream(data: { stream: boolean }) {
             // 원격 피어로부터의 새로운 스트림을 처리
             const { stream } = data;
             if (stream) {
-                // Offer SDP 생성
-                peerConnection
-                    ?.createOffer()
-                    .then((offer) => peerConnection.setLocalDescription(offer))
-                    .then(() =>
-                        sendSignal({
-                            type: 'sdp',
-                            data: peerConnection.localDescription!
-                        })
-                    )
-                    .catch((error) => console.error('Error creating offer:', error));
+                // Offer SDP 생성하지 않고, 원격 오퍼에 대해 응답만 생성
+                if (peerConnection?.signalingState !== 'have-local-offer') {
+                    peerConnection
+                        ?.createOffer()
+                        .then((offer) => peerConnection.setLocalDescription(offer))
+                        .then(() =>
+                            sendSignal({
+                                type: 'sdp',
+                                data: peerConnection.localDescription!
+                            })
+                        )
+                        .catch((error) => console.error('Error creating offer:', error));
+                }
             }
         }
 
@@ -120,19 +129,40 @@ export default function useSignaling(peerConnection?: RTCPeerConnection) {
                     })
                     .then((answer) => {
                         if (answer) {
-                            peerConnection.setLocalDescription(answer);
-                            sendSignal({ type: 'sdp', data: answer });
+                            peerConnection.setLocalDescription(answer).then(() => {
+                                sendSignal({ type: 'sdp', data: answer });
+                            });
                         }
                     })
                     .catch((error) => {
                         console.error('Error handling SDP:', error);
                     });
             } else if (data.type === 'iceCandidate') {
+                // ICE candidate 데이터를 처리
                 peerConnection?.addIceCandidate(new RTCIceCandidate(data.data)).catch((error) => {
                     console.error('Error handling ICE candidate:', error);
                 });
             }
         }
+
+        /**
+         * WebSocket 연결 상태를 확인하고, 연결이 준비되었을 때 메세지를 전송한다.
+         */
+        ws.current = new WebSocket('ws://localhost:3000');
+        ws.current.onopen = () => {
+            setIsConnected(true);
+            flushMessageQueue();
+        };
+        ws.current.onclose = () => {
+            setIsConnected(false);
+        };
+        ws.current.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        return () => {
+            ws.current?.close();
+        };
     }, [peerConnection]);
 
     /** 시그널링 연결 끊기 */
