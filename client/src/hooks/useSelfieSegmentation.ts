@@ -1,5 +1,5 @@
 import { FilesetResolver, ImageSegmenter, ImageSegmenterResult } from '@mediapipe/tasks-vision';
-import { RefObject, useCallback, useMemo, useRef } from 'react';
+import { RefObject, useCallback, useEffect, useRef } from 'react';
 
 /**
  * MediaStream을 입력 받아, 배경을 크로마키 처리하여 캔버스에 그려주고 캔버스의 스트림을 반환한다.
@@ -10,17 +10,7 @@ export const useSelfieSegmentation = ({ canvasRef }: { canvasRef: RefObject<HTML
     const localCanvas = useRef<HTMLCanvasElement>(document.createElement('canvas'));
     const localVideoRef = useRef<HTMLVideoElement>(document.createElement('video'));
     const remoteVideoRef = useRef<HTMLVideoElement>(document.createElement('video'));
-    const vision = useMemo(async () => FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm'), []);
-    const imageSegmenter = useMemo(
-        async () =>
-            await ImageSegmenter.createFromOptions(await vision, {
-                baseOptions: { modelAssetPath: '/selfie_segmenter.tflite', delegate: 'GPU' },
-                runningMode: 'IMAGE',
-                outputCategoryMask: true,
-                outputConfidenceMasks: false
-            }),
-        [vision]
-    );
+    const segmentRef = useRef<ImageSegmenter | null>(null);
 
     /** 웹캠을 예측한다. */
     const predictWebcam = useCallback(async () => {
@@ -67,8 +57,8 @@ export const useSelfieSegmentation = ({ canvasRef }: { canvasRef: RefObject<HTML
             return;
         }
         const img = ctx.getImageData(0, 0, width, height);
-        (await imageSegmenter).segment(img, handleSegmentForVideo);
-    }, [canvasRef, imageSegmenter]);
+        segmentRef.current?.segment(img, handleSegmentForVideo);
+    }, [canvasRef]);
 
     /**
      * 비디오 프레임 내에 있는 이미지 객체를 분할한다.
@@ -76,11 +66,11 @@ export const useSelfieSegmentation = ({ canvasRef }: { canvasRef: RefObject<HTML
     const handleSegmentForVideo = useCallback(
         (result: ImageSegmenterResult) => {
             const mask = result.categoryMask?.getAsFloat32Array() ?? [];
-            const maskLength = mask.length;
             if (!mask || !bgImageDataRef.current) {
                 requestAnimationFrame(predictWebcam);
                 return;
             }
+            const maskLength = mask.length;
             // console.log(maskLength);
             if (!canvasRef.current) return;
             const localCtx = localCanvas.current.getContext('2d');
@@ -147,6 +137,30 @@ export const useSelfieSegmentation = ({ canvasRef }: { canvasRef: RefObject<HTML
         }
         predictWebcam();
     };
+
+    /** 초기 진입 설정 */
+    useEffect(() => {
+        if (!canvasRef.current) return;
+        // const canvas = canvasRef.current;
+        /** 가상배경 설정을 초기화한다. */
+        const initializeBackdropSettings = async () => {
+            try {
+                const vision = FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm');
+                segmentRef.current = await ImageSegmenter.createFromOptions(await vision, {
+                    baseOptions: { modelAssetPath: '/selfie_segmenter.tflite', delegate: 'GPU' },
+                    runningMode: 'IMAGE',
+                    outputCategoryMask: true,
+                    outputConfidenceMasks: false
+                });
+
+                predictWebcam();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        };
+
+        initializeBackdropSettings();
+    }, [canvasRef, handleSegmentForVideo, predictWebcam]);
 
     return { updateVideo };
 };
