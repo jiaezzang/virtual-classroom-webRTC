@@ -10,51 +10,64 @@ export const useSelfieSegmentation = ({ canvasRef }: { canvasRef: RefObject<HTML
     const localCanvas = useRef<HTMLCanvasElement>(document.createElement('canvas'));
     const localVideoRef = useRef<HTMLVideoElement>(document.createElement('video'));
     const remoteVideoRef = useRef<HTMLVideoElement>(document.createElement('video'));
-    const lastWebcamTime = useRef(-1);
     const vision = useMemo(async () => FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm'), []);
     const imageSegmenter = useMemo(
         async () =>
             await ImageSegmenter.createFromOptions(await vision, {
                 baseOptions: { modelAssetPath: '/selfie_segmenter.tflite', delegate: 'GPU' },
-                runningMode: 'VIDEO',
+                runningMode: 'IMAGE',
                 outputCategoryMask: true,
                 outputConfidenceMasks: false
             }),
         [vision]
     );
 
+    /** 웹캠을 예측한다. */
     const predictWebcam = useCallback(async () => {
         const localVideo = localVideoRef.current;
         const ctx = isBackground.current
             ? localCanvas.current?.getContext('2d', { willReadFrequently: true })
             : canvasRef.current?.getContext('2d', { willReadFrequently: true });
-        const canvas = isBackground.current ? localCanvas.current : canvasRef.current;
-        if (!ctx || !canvasRef.current || !canvas) return;
+        if (!ctx || !canvasRef.current) return;
 
-        // 마지막으로 캔버스에 그리기를 수행한 시간과 비디오 시간이 같으면 새로 그릴 필요 없음
-        if (localVideo.currentTime === 0 || lastWebcamTime.current === localVideo.currentTime) {
-            requestAnimationFrame(predictWebcam);
-            return;
-        }
-        lastWebcamTime.current = localVideo.currentTime;
+        // remote stream 존재 유무에 따라 Canvas 그리기
+        // 하나의 Stream은 Canvas의 너비 * 1/2 크기로 그리며, 전체 비디오 너비의 중앙을 자른다.
         const remoteVideo = remoteVideoRef.current;
         const width = localCanvas.current.width;
         const height = localCanvas.current.height;
+        const canvasRatio = width / 2 / height;
+        const sy = 0;
+        ctx.clearRect(0, 0, width, height);
+
         if (remoteVideo.autoplay) {
-            //remote Stream 좌측에 그리기
-            ctx?.drawImage(remoteVideo, width / 2, 0, width / 2, height);
+            if (!localVideo || !remoteVideo) return;
+            const localVWidth = localVideo?.videoWidth;
+            const localVHeight = localVideo?.videoHeight;
+            const remoteVWidth = remoteVideo?.videoWidth;
+            const remoteVHeight = remoteVideo?.videoHeight;
+            const localWidth = localVHeight * canvasRatio;
+            const remoteWidth = remoteVHeight * canvasRatio;
+            const localX = (localVWidth - localWidth) / 2; // 중앙을 기준으로 잘라내기
+            const remoteX = (remoteVWidth - remoteWidth) / 2;
             //local Stream 우측에 그리기
-            ctx?.drawImage(localVideo, 0, 0, width / 2, height);
+            ctx.drawImage(remoteVideo, remoteX, sy, remoteWidth, remoteVHeight, width / 2, 0, width / 2, height);
+            //remote Stream 좌측에 그리기
+            ctx.drawImage(localVideo, localX, sy, localWidth, localVHeight, 0, 0, width / 2, height);
         } else {
+            if (!localVideo) return;
+            const localVWidth = localVideo?.videoWidth;
+            const localVHeight = localVideo?.videoHeight;
+            const localWidth = localVHeight * canvasRatio;
+            const localX = (localVWidth - localWidth) / 2; // 중앙을 기준으로 잘라내기
             //localVideo 중앙에 그리기
-            ctx?.drawImage(localVideo, width / 4, 0, width / 2, height);
+            ctx.drawImage(localVideo, localX, sy, localWidth, localVHeight, width / 4, 0, width / 2, height);
         }
         if (!isBackground.current || !bgImageDataRef.current) {
             requestAnimationFrame(predictWebcam);
             return;
         }
-        const startTimeMs = performance.now();
-        (await imageSegmenter).segmentForVideo(canvas, startTimeMs, handleSegmentForVideo);
+        const img = ctx.getImageData(0, 0, width, height);
+        (await imageSegmenter).segment(img, handleSegmentForVideo);
     }, [canvasRef, imageSegmenter]);
 
     /**
@@ -98,33 +111,36 @@ export const useSelfieSegmentation = ({ canvasRef }: { canvasRef: RefObject<HTML
         [canvasRef, predictWebcam]
     );
 
+    /** Stream을 받아 video로 재생해준다. */
     const updateVideo = ({ localVideo, remoteVideo, src }: { localVideo?: HTMLVideoElement; remoteVideo?: HTMLVideoElement; src?: string | null }) => {
+        /** stream을 video로 변환한다. */
         if (localVideo) localVideoRef.current = localVideo;
         if (remoteVideo) remoteVideoRef.current = remoteVideo;
+
+        /** canvas size 설정한다. */
         if (canvasRef.current) {
-            // Canvas Size 설정
             canvasRef.current.width = canvasRef.current.offsetWidth;
             canvasRef.current.height = canvasRef.current.offsetHeight;
             localCanvas.current.width = canvasRef.current.offsetWidth;
             localCanvas.current.height = canvasRef.current.offsetHeight;
         }
-
+        /** 배경을 설정한다. */
         if (canvasRef.current && src && src.length > 0) {
             isBackground.current = src.length > 0;
-            const bgCanvas = document.createElement('canvas');
-            const bgCtx = bgCanvas.getContext('2d');
-            bgCanvas.width = canvasRef.current.width;
-            bgCanvas.height = canvasRef.current.height;
+            const backdropCanvas = document.createElement('canvas');
+            const backdropCtx = backdropCanvas.getContext('2d');
+            backdropCanvas.width = canvasRef.current.width;
+            backdropCanvas.height = canvasRef.current.height;
 
-            const bgImage = new Image();
-            bgImage.src = src;
+            const backdropImage = new Image();
+            backdropImage.src = src;
 
-            bgImage.onload = () => {
-                if (!bgCtx) return;
-                bgCtx.drawImage(bgImage, 0, 0, bgCanvas.width, bgCanvas.height);
-                bgImageDataRef.current = bgCtx.getImageData(0, 0, bgCanvas.width, bgCanvas.height);
-                bgCanvas.remove();
-                bgImage.remove();
+            backdropImage.onload = () => {
+                if (!backdropCtx) return;
+                backdropCtx.drawImage(backdropImage, 0, 0, backdropCanvas.width, backdropCanvas.height);
+                bgImageDataRef.current = backdropCtx.getImageData(0, 0, backdropCanvas.width, backdropCanvas.height);
+                backdropCanvas.remove();
+                backdropImage.remove();
             };
         } else {
             isBackground.current = false;
