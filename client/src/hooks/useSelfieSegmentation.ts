@@ -127,20 +127,20 @@ export const useSelfieSegmentation = ({ canvasRef }: { canvasRef: RefObject<HTML
         /** 배경을 설정한다. */
         if (canvasRef.current && src && src.length > 0) {
             isBackground.current = src.length > 0;
-            const backdropCanvas = document.createElement('canvas');
-            const backdropCtx = backdropCanvas.getContext('2d');
-            backdropCanvas.width = canvasRef.current.width;
-            backdropCanvas.height = canvasRef.current.height;
+            const bgCanvas = document.createElement('canvas');
+            const bgCtx = bgCanvas.getContext('2d');
+            bgCanvas.width = canvasRef.current.width;
+            bgCanvas.height = canvasRef.current.height;
 
-            const backdropImage = new Image();
-            backdropImage.src = src;
+            const bgImage = new Image();
+            bgImage.src = src;
 
-            backdropImage.onload = () => {
-                if (!backdropCtx) return;
-                backdropCtx.drawImage(backdropImage, 0, 0, backdropCanvas.width, backdropCanvas.height);
-                bgImageDataRef.current = backdropCtx.getImageData(0, 0, backdropCanvas.width, backdropCanvas.height);
-                backdropCanvas.remove();
-                backdropImage.remove();
+            bgImage.onload = () => {
+                if (!bgCtx) return;
+                bgCtx.drawImage(bgImage, 0, 0, bgCanvas.width, bgCanvas.height);
+                bgImageDataRef.current = bgCtx.getImageData(0, 0, bgCanvas.width, bgCanvas.height);
+                bgCanvas.remove();
+                bgImage.remove();
             };
         } else {
             isBackground.current = false;
